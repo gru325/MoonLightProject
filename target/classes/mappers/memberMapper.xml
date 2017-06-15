@@ -1,0 +1,192 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper
+  PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+  "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+  
+<!-- mapper와 일치시키기 위해 !DOCTYPE mapper 사용 --> <!-- Mybatis mapper에서는 JSP의 name 지정에 따라 값을 받아온다. -->
+  
+<mapper namespace="org.moon.mappers.memberMapper">
+
+<insert id="create">
+
+	insert into tbl_member (mno, mid, mname, mpw, mnick, mmail, mhp, htel, haddr)
+	values (seq_member.nextval, #{mid}, #{mname}, #{mpw}, #{mnick}, #{mmail}, #{mhp}, #{htel}, #{haddr})
+
+</insert>
+
+<select id="read" resultType="MemberVO">
+	
+	<!-- log4jdbc unit 확인을 위한 resultType 입력 -->
+	
+	select*from tbl_member where mno=#{mno}
+
+</select>
+
+<update id="update" parameterType="MemberVO">
+
+	update tbl_member set mid=#{mid}, mname=#{mname}, mpw=#{mpw}, mnick=#{mnick}, mmail=#{mmail}, mhp=#{mhp}, htel=#{htel}, haddr=#{haddr} where mno=#{mno}
+
+</update>
+
+<delete id="delete">
+
+	delete tbl_member where mno=#{mno}
+
+</delete>
+
+<select id="listAll" resultType="MemberVO">
+
+	<!-- log4jdbc unit 확인을 위한 resultType 입력 -->
+	
+	<!-- 쿼리문에서 부등호 사용을 위한 <![CDATA[]> 활용 -->
+	
+	<![CDATA[
+	select* 
+	from 
+		(select rownum rno, mno, mid, mname, mpw, mnick, mmail, mhp, mh, htel, haddr, regdate from tbl_member where rownum>0)
+	order by mno desc
+	]]>
+
+</select>
+
+<select id="listPage" resultType="MemberVO">
+
+	<![CDATA[
+	select mno, mid, mname, mpw, mmail, mhp, mnick, mh, htel, haddr, regdate 
+	from 
+	  (
+	  select rownum rno, mno, mid, mname, mpw, mnick, mmail, mhp, mh, htel, haddr, regdate 
+	  from tbl_member 
+	  where mno > 0 
+	  and rownum <= #{page} * 10 
+	  order by mno desc
+	  ) 
+	where rno > (#{page} - 1) * 10
+	]]>
+
+</select>
+
+<select id="listCriteria" resultType="MemberVO">
+
+	<![CDATA[
+	select mno, mid, mname, mpw, mmail, mhp, mnick, mh, htel, haddr, regdate 
+	from 
+	  (
+	  select rownum rno, mno, mid, mname, mpw, mnick, mmail, mhp, mh, htel, haddr, regdate 
+	  from tbl_member 
+	  where mno > 0 
+	  and rownum <= #{page} * #{perPageNum} 
+	  order by mno desc
+	  ) 
+	where rno > (#{page} - 1) * #{perPageNum}
+	]]>
+
+</select>
+
+<select id="countPaging" resultType="int">
+
+	<![CDATA[
+	select count(*) from tbl_member where mno > 0
+	]]>
+
+</select>
+
+<select id="listSearch" resultType="MemberVO">
+
+	<![CDATA[
+	select mno, mid, mname, mpw, mmail, mhp, mnick, mh, htel, haddr, regdate 
+from 
+(
+  select rownum rno, mno, mid, mname, mpw, mnick, mmail, mhp, mh, htel, haddr, regdate 
+  from tbl_member 
+  where mno > 0 
+	  ]]>
+	  
+	<include refid="search"></include>
+	  
+	<![CDATA[
+	  and rownum <= (1) * 10 
+  order by mno desc
+)
+where rno > (1-1) * 10
+	]]>
+
+</select>
+
+<select id="listSearchCount" resultType="int">
+
+	<![CDATA[
+	select count(*) from tbl_member where mno > 0
+	]]>
+	
+	<include refid="search"></include>
+
+</select>
+
+<select id="getAttach" resultType="string">
+
+select fullName from tbl_attach where mno = #{mno} order by regdate
+</select>
+
+<!-- 프로필 사진 파일 업로드 -->
+
+<insert id="addAttach">
+	insert into tbl_attach (fullName, mno) values (#{imgname}, seq_member.currval)
+</insert>
+
+<delete id="deleteAttach">
+	delete from tbl_attach where mno = #{mno}
+</delete>
+
+<insert id="replaceAttach">
+	insert into tbl_attach (fullName, mno) values (#{fullName}, #{mno})
+</insert>
+
+<!-- 로그인 부분 -->
+
+<select id="login" resultType="MemberVO">
+	select mid, mpw, mname from tbl_member where mid=#{mid} and mpw=#{mpw}
+</select>
+
+<!-- 로그인한 사용자의 sessionKey, sessionLimit 업데이트 -->
+<update id="keepLogin">
+	update tbl_member set sessionKey=#{sessionId}, sessionLimit=#{next} where mid=#{mid}
+</update>
+
+<select id="checkMemberWithSessionKey" resultType="MemberVO">
+	select * from tbl_member where sessionKey=#{value} and sessionLimit > sysdate
+</select>
+
+<!-- include 재사용을 위한 SQL 조각문 -->
+
+<sql id="search">
+
+	  <if test="searchType != null">
+	  	<if test="searchType == 'i'.toString()">
+	  		and mid like '%'||#{keyword}||'%' 
+	  	</if>
+	  	<if test="searchType == 'n'.toString()">
+	  		and mname like '%'||#{keyword}||'%' 
+	  	</if>
+	  	<if test="searchType == 'k'.toString()">
+	  		and mnick like '%'||#{keyword}||'%' 
+	  	</if>
+	  	<if test="searchType == 'in'.toString()">
+	  		and (mid like '%'||#{keyword}||'%' OR mname like '%'||#{keyword}||'%') 
+	  	</if>
+	  	<if test="searchType == 'nk'.toString()">
+	  		and (mname like '%'||#{keyword}||'%' OR mnick like '%'||#{keyword}||'%') 
+	  	</if>
+	  	<if test="searchType == 'ink'.toString()">
+	  		and (mid like '%'||#{keyword}||'%' OR mname like '%'||#{keyword}||'%' OR mnick like '%'||#{keyword}||'%') 
+	  	</if>
+	  	<if test="searchType == 'e'.toString()">
+	  		and mmail like '%'||#{keyword}||'%' 
+	  	</if>
+	  	<if test="searchType == 'p'.toString()">
+	  		and mhp like '%'||#{keyword}||'%' 
+	  	</if>
+	  </if>
+</sql>
+
+</mapper>
